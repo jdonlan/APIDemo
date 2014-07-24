@@ -11,6 +11,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 
+import org.apache.commons.io.IOUtils;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -24,8 +25,6 @@ public class MainActivity extends Activity {
 
     final String TAG = "API DEMO";
 
-    private MainActivity mMainActivity = this;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -37,13 +36,12 @@ public class MainActivity extends Activity {
             public void onClick(View v) {
                 TextView symbolView = (TextView) findViewById(R.id.symbolEntry);
                 String symbol = symbolView.getText().toString();
-                try{
+                try {
                     String baseURL = "http://query.yahooapis.com/v1/public/yql";
                     String yql = "select * from csv where url='http://download.finance.yahoo.com/d/quotes.csv?s=" + symbol + "&f=sl1d1t1c1ohgvp2&e=.csv' and columns='symbol,price,date,time,change,open,high,low,volume,chgpct'";
                     String qs = URLEncoder.encode(yql, "UTF-8");
                     URL queryURL = new URL(baseURL + "?q=" + qs + "&format=json");
-                    GetQuoteTask getQuoteTask = new GetQuoteTask(mMainActivity);
-                    getQuoteTask.execute(queryURL);
+                    new GetQuoteTask().execute(queryURL);
                 } catch (Exception e) {
                     Log.e(TAG, "Invalid query for symbol: " + symbol);
                 }
@@ -71,87 +69,65 @@ public class MainActivity extends Activity {
         return super.onOptionsItemSelected(item);
     }
 
-    public void updateDisplay(JSONObject apiData){
-        try {
-            Log.i(TAG,"Updating display.");
 
-        } catch (Exception e) {
-            Log.e(TAG, "Error parsing JSON data for display");
-        }
+    private void updateDisplay(Stock stock){
+        ((TextView) findViewById(R.id.data_symbol)).setText(stock.getSymbol());
+        ((TextView) findViewById(R.id.data_price)).setText(stock.getPrice().toString());
+        ((TextView) findViewById(R.id.data_updated)).setText(stock.getDate());
+        ((TextView) findViewById(R.id.data_high)).setText(stock.getHigh().toString());
+        ((TextView) findViewById(R.id.data_low)).setText(stock.getLow().toString());
+        ((TextView) findViewById(R.id.data_change)).setText(stock.getChange().toString());
+        ((TextView) findViewById(R.id.data_open)).setText(stock.getOpen().toString());
+        ((TextView) findViewById(R.id.data_volume)).setText(stock.getVolume().toString());
+        ((TextView) findViewById(R.id.data_chgpct)).setText(stock.getPercent());
     }
 
-}
+    private class GetQuoteTask extends AsyncTask<URL, Integer, JSONObject> {
 
-class GetQuoteTask extends AsyncTask<URL, Integer, JSONObject> {
+        final String TAG = "API DEMO ASYNCTASK";
 
-    final String TAG = "API DEMO ASYNCTASK";
+        @Override
+        protected JSONObject doInBackground(URL... urls) {
 
-    private MainActivity mMainActivity;
+            String jsonString = "";
 
-    public GetQuoteTask(MainActivity mainActivity){
-        this.mMainActivity = mainActivity;
-    }
-
-    @Override
-    protected JSONObject doInBackground(URL... urls) {
-
-        //COLLECT STRING RESPONSES FROM API
-        StringBuffer responseBuffer = new StringBuffer();
-
-        for(URL queryURL : urls){
-            try{
-                URLConnection conn = queryURL.openConnection();
-                BufferedInputStream bin = new BufferedInputStream(conn.getInputStream());
-
-                byte[] contentBytes = new byte[1024];
-                int bytesRead = 0;
-
-                while((bytesRead = bin.read(contentBytes)) != -1){
-                    String response = new String(contentBytes,0,bytesRead);
-                    responseBuffer.append(response);
+            //COLLECT STRING RESPONSES FROM API
+            for (URL queryURL : urls) {
+                try {
+                    URLConnection conn = queryURL.openConnection();
+                    jsonString = IOUtils.toString(conn.getInputStream());
+                    break;
+                } catch (Exception e) {
+                    Log.e(TAG, "Cannot establish URLConnection to " + queryURL.toString());
+                    return null;
                 }
-                continue;
-            } catch (Exception e){
-                Log.e(TAG, "Cannot establish URLConnection to " + queryURL.toString());
-                return null;
             }
-        }
-        Log.i(TAG,"Received Data: " + responseBuffer.toString());
+            Log.i(TAG, "Received Data: " + jsonString);
 
-        //CONVERT API STRING RESPONSE TO JSONOBJECT
-        String json = responseBuffer.toString();
-        JSONObject apiData;
-        try{
-            apiData = new JSONObject(json);
-        } catch (JSONException e){
-            apiData = null;
-            Log.e(TAG, "Could not convert API response to JSON: " + json);
+            //CONVERT API STRING RESPONSE TO JSONOBJECT
+            JSONObject apiData;
+
+            try {
+                apiData = new JSONObject(jsonString);
+            } catch (JSONException e) {
+                apiData = null;
+                Log.e(TAG, "Could not convert API response to JSON: " + jsonString);
+                return apiData;
+            }
+            try {
+                apiData = (apiData != null) ? apiData.getJSONObject("query").getJSONObject("results").getJSONObject("row") : null;
+                Log.i(TAG, "API JSON data received: " + apiData);
+            } catch (Exception e) {
+                Log.e(TAG, "Could not parse data record from response: " + apiData.toString());
+                apiData = null;
+            }
+
             return apiData;
         }
-        try{
-            apiData = (apiData != null)? apiData.getJSONObject("query").getJSONObject("results").getJSONObject("row") : null;
-            Log.i(TAG, "API JSON data received: " + apiData);
-        } catch (Exception e) {
-            Log.e(TAG, "Could not parse data record from response: " + apiData.toString());
-            apiData = null;
-        }
 
-        return apiData;
-    }
-
-    protected void onPostExecute(JSONObject apiData) {
-        try {
-            ((TextView) mMainActivity.findViewById(R.id.data_symbol)).setText(apiData.getString("symbol"));
-            ((TextView) mMainActivity.findViewById(R.id.data_price)).setText(apiData.getString("price"));
-            ((TextView) mMainActivity.findViewById(R.id.data_updated)).setText(apiData.getString("date") + " " + apiData.getString("time"));
-            ((TextView) mMainActivity.findViewById(R.id.data_high)).setText(apiData.getString("high"));
-            ((TextView) mMainActivity.findViewById(R.id.data_low)).setText(apiData.getString("low"));
-            ((TextView) mMainActivity.findViewById(R.id.data_change)).setText(apiData.getString("change"));
-            ((TextView) mMainActivity.findViewById(R.id.data_open)).setText(apiData.getString("open"));
-            ((TextView) mMainActivity.findViewById(R.id.data_volume)).setText(apiData.getString("volume"));
-            ((TextView) mMainActivity.findViewById(R.id.data_chgpct)).setText(apiData.getString("chgpct"));
-        } catch (Exception e){
-            Log.e(TAG,"Error updating display");
+        protected void onPostExecute(JSONObject apiData) {
+            Stock result = new Stock(apiData);
+            updateDisplay(result);
         }
     }
 }
