@@ -10,7 +10,7 @@ import org.json.JSONObject;
  */
 public class Stock {
 
-    final String TAG = "STOCK";
+    final String TAG = "STOCK CLASS";
 
     private String mSymbol;
     private Double mPrice;

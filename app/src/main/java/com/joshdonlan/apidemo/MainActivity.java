@@ -15,7 +15,6 @@ import org.apache.commons.io.IOUtils;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.BufferedInputStream;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLEncoder;
